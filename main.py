@@ -6,8 +6,9 @@ import sys
 from datetime import datetime
 from pathlib import Path
 import random
+import re
 
-from poem.summarizer import get_world_news_summary
+from poem.summarizer import get_world_news_summary, generate_short_title
 from poem.poem_writer import make_stanzas
 from audio.tts import generate_audio_files
 from video.video_maker import build_video
@@ -33,6 +34,7 @@ def main() -> None:
     tone = args.tone
     backgrounds_override = args.backgrounds
     base_output_dir = Path(args.output_dir) if args.output_dir else settings.OUTPUT_BASE_DIR
+    stanza_count = args.stanzas
     try:
         logger.info("=" * 60)
         logger.info("Starting Poem Short Generator Pipeline")
@@ -59,13 +61,18 @@ def main() -> None:
         
         # Step 2: Convert summary to poem stanzas
         logger.info("\n[Step 2/4] Converting summary to poem stanzas...")
-        stanzas = make_stanzas(summary, tone=tone, model=openai_model)
+        stanzas = make_stanzas(summary, tone=tone, model=openai_model, stanza_count=stanza_count)
         
         # Save stanzas
         stanzas_path = output_dir / "stanzas.txt"
         stanzas_text = "\n\n".join(f"Stanza {i}:\n{stanza}" for i, stanza in enumerate(stanzas, 1))
         stanzas_path.write_text(stanzas_text, encoding='utf-8')
         logger.info(f"Stanzas saved to: {stanzas_path}")
+
+        # Generate short title
+        title = generate_short_title(summary, model=openai_model)
+        logger.info(f"Generated title: {title}")
+        safe_title = _slugify(title)
         
         # Step 3: Generate audio files
         logger.info("\n[Step 3/4] Generating audio files...")
@@ -84,7 +91,9 @@ def main() -> None:
             )
         
         # Build video
-        video_path = output_dir / f"video.{settings.OUTPUT_VIDEO_FORMAT}"
+        date_prefix = timestamp.split("_")[0]
+        video_filename = f"{date_prefix}_{safe_title}.{settings.OUTPUT_VIDEO_FORMAT}" if safe_title else f"video.{settings.OUTPUT_VIDEO_FORMAT}"
+        video_path = output_dir / video_filename
         final_video_path = build_video(
             backgrounds=background_paths,
             stanzas=stanzas,
@@ -156,7 +165,16 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--tone", type=str, default="poetic insight", help="Tone/style for the poem (e.g., 'poetic insight', 'somber', 'upbeat')")
     parser.add_argument("--backgrounds", type=str, default=None, help="Path to backgrounds directory (overrides settings)")
     parser.add_argument("--output-dir", type=str, default=None, help="Base output directory (overrides settings)")
+    parser.add_argument("--stanzas", type=int, default=7, help="Number of stanzas/slides to generate (default: 7)")
     return parser.parse_args()
+
+
+def _slugify(text: str) -> str:
+    """Make a filesystem-friendly slug from text."""
+    text = text.lower().strip()
+    text = re.sub(r"[^a-z0-9]+", "-", text)
+    text = text.strip("-")
+    return text or "video"
 
 
 if __name__ == "__main__":

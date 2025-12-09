@@ -9,15 +9,23 @@ import settings
 logger = logging.getLogger(__name__)
 
 
-def make_stanzas(summary_text: str, tone: str = "poetic insight", model: str | None = None, max_retries: int = 3, backoff_seconds: float = 1.5) -> list[str]:
+def make_stanzas(
+    summary_text: str,
+    tone: str = "poetic insight",
+    model: str | None = None,
+    stanza_count: int = 7,
+    max_retries: int = 3,
+    backoff_seconds: float = 1.5,
+) -> list[str]:
     """
-    Converts summary → 3 stanzas (2-3 lines each).
+    Converts summary → stanza_count stanzas (2-3 lines each).
     Each stanza focuses on part of the news.
     
     Args:
         summary_text: The news summary text to convert.
         tone: Desired tone/style for the poem.
         model: Optional OpenAI model override.
+        stanza_count: Number of stanzas to produce.
         max_retries: Number of retry attempts on failure.
         backoff_seconds: Base backoff in seconds between retries.
     
@@ -37,8 +45,8 @@ def make_stanzas(summary_text: str, tone: str = "poetic insight", model: str | N
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
     model_name = model or settings.OPENAI_MODEL
     
-    prompt = f"""Convert the following world news summary into a 3-stanza poem.
-- Each stanza must have 2-3 lines and focus on a different facet of the news.
+    prompt = f"""Convert the following world news summary into a {stanza_count}-stanza poem.
+- Each stanza must have 2-3 lines and focus on a distinct facet of the news.
 - Write with {tone} while keeping factual anchoring and insight.
 - Provide subtle interpretation: stakes, human impact, and context across regions.
 - Use vivid, economical language; avoid clichés; keep it respectful.
@@ -55,9 +63,9 @@ Stanza 1 line 2
 Stanza 2 line 1
 Stanza 2 line 2
 [optional line 3]
-
-Stanza 3 line 1
-Stanza 3 line 2
+...
+Stanza {stanza_count} line 1
+Stanza {stanza_count} line 2
 [optional line 3]"""
 
     last_error: Exception | None = None
@@ -79,10 +87,10 @@ Stanza 3 line 2
             # Parse stanzas from the response
             stanzas = _parse_stanzas(poem_text)
             
-            # Validate we have exactly 3 stanzas
-            if len(stanzas) != 3:
-                logger.warning(f"Expected 3 stanzas, got {len(stanzas)}. Attempting to fix...")
-                stanzas = _fix_stanza_count(stanzas, poem_text)
+            # Validate we have exact stanza_count
+            if len(stanzas) != stanza_count:
+                logger.warning(f"Expected {stanza_count} stanzas, got {len(stanzas)}. Attempting to fix...")
+                stanzas = _fix_stanza_count(stanzas, poem_text, stanza_count=stanza_count)
             
             # Validate each stanza has 2-3 lines
             for i, stanza in enumerate(stanzas, 1):
@@ -133,7 +141,7 @@ def _parse_stanzas(poem_text: str) -> list[str]:
     return stanzas
 
 
-def _fix_stanza_count(stanzas: list[str], original_text: str) -> list[str]:
+def _fix_stanza_count(stanzas: list[str], original_text: str, stanza_count: int = 7) -> list[str]:
     """
     Attempt to fix stanza count if we don't have exactly 3.
     
@@ -144,51 +152,32 @@ def _fix_stanza_count(stanzas: list[str], original_text: str) -> list[str]:
     Returns:
         List of exactly 3 stanzas.
     """
-    if len(stanzas) == 3:
+    if len(stanzas) == stanza_count:
         return stanzas
     
-    # If we have more than 3, take first 3
-    if len(stanzas) > 3:
-        logger.info(f"Taking first 3 of {len(stanzas)} stanzas")
-        return stanzas[:3]
+    # If we have more, truncate
+    if len(stanzas) > stanza_count:
+        logger.info(f"Taking first {stanza_count} of {len(stanzas)} stanzas")
+        return stanzas[:stanza_count]
     
-    # If we have fewer than 3, try to split longer stanzas
-    if len(stanzas) == 2:
-        # Split the longer stanza
-        if len(stanzas[0]) > len(stanzas[1]):
-            # Split first stanza
-            lines = [l.strip() for l in stanzas[0].split('\n') if l.strip()]
+    # If fewer, attempt to split longer stanzas to reach target count
+    while len(stanzas) < stanza_count and stanzas:
+        longest_idx = max(range(len(stanzas)), key=lambda i: len(stanzas[i]))
+        lines = [l.strip() for l in stanzas[longest_idx].split('\n') if l.strip()]
+        if len(lines) >= 4:
             mid = len(lines) // 2
-            return [
-                '\n'.join(lines[:mid]),
-                '\n'.join(lines[mid:]),
-                stanzas[1]
-            ]
+            first = '\n'.join(lines[:mid])
+            second = '\n'.join(lines[mid:])
+            stanzas.pop(longest_idx)
+            stanzas.insert(longest_idx, second)
+            stanzas.insert(longest_idx, first)
         else:
-            # Split second stanza
-            lines = [l.strip() for l in stanzas[1].split('\n') if l.strip()]
-            mid = len(lines) // 2
-            return [
-                stanzas[0],
-                '\n'.join(lines[:mid]),
-                '\n'.join(lines[mid:])
-            ]
+            break
     
-    # If we only have 1 stanza, split it into 3
-    if len(stanzas) == 1:
-        lines = [l.strip() for l in stanzas[0].split('\n') if l.strip()]
-        if len(lines) >= 6:
-            # Split into roughly equal parts
-            chunk_size = len(lines) // 3
-            return [
-                '\n'.join(lines[0:chunk_size]),
-                '\n'.join(lines[chunk_size:chunk_size*2]),
-                '\n'.join(lines[chunk_size*2:])
-            ]
-        else:
-            # Pad with empty lines or repeat
-            while len(stanzas) < 3:
-                stanzas.append(stanzas[0] if stanzas else "")
+    # Pad if still short
+    if len(stanzas) < stanza_count:
+        while len(stanzas) < stanza_count:
+            stanzas.append(stanzas[-1] if stanzas else "")
     
-    return stanzas[:3] if len(stanzas) >= 3 else stanzas + [""] * (3 - len(stanzas))
+    return stanzas[:stanza_count]
 

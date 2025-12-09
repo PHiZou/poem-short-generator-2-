@@ -68,3 +68,48 @@ def get_world_news_summary(model: str | None = None, max_retries: int = 3, backo
     logger.error(f"Failed to generate news summary after {max_retries} attempts: {last_error}")
     raise last_error
 
+
+def generate_short_title(summary_text: str, model: str | None = None, max_retries: int = 2, backoff_seconds: float = 1.0) -> str:
+    """
+    Generate a very short, descriptive title (3-7 words) for the video.
+    """
+    if not settings.OPENAI_API_KEY:
+        raise ValueError("OPENAI_API_KEY is not configured. Please set it in your environment or .env file.")
+    if not summary_text.strip():
+        raise ValueError("Summary text cannot be empty for title generation.")
+
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    model_name = model or settings.OPENAI_MODEL
+
+    prompt = f"""Generate a concise, catchy title (3-7 words) that captures the essence of this day's world news summary. Avoid dates. Be specific, balanced, and informative.
+
+Summary:
+{summary_text}
+
+Respond with only the title."""
+
+    last_error: Exception | None = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": "You write brief, vivid titles for daily world news digests."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.5,
+                max_tokens=30,
+            )
+            title = response.choices[0].message.content.strip()
+            # guard against newlines
+            title = title.replace("\n", " ").strip()
+            return title
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Attempt {attempt} failed to generate title: {e}")
+            if attempt < max_retries:
+                time.sleep(backoff_seconds * attempt)
+
+    logger.error(f"Failed to generate title after {max_retries} attempts: {last_error}")
+    raise last_error
+
