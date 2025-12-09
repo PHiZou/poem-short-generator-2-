@@ -82,6 +82,8 @@ Run the complete pipeline:
 
 ```bash
 python main.py
+# optional flags:
+# --model gpt-4o-mini --tone "poetic insight" --backgrounds assets/backgrounds --output-dir output
 ```
 
 The script will:

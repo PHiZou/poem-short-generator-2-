@@ -311,21 +311,22 @@ def _calculate_font_size(text: str) -> int:
     # Base font size from settings
     base_size = settings.CAPTION_FONT_SIZE
     
-    # Adjust based on text length
     lines = text.split('\n')
     max_line_length = max(len(line) for line in lines) if lines else len(text)
+    line_count = len([l for l in lines if l.strip()])
     
-    # Reduce font size if text is very long
-    if max_line_length > 60:
-        # Scale down for long lines
-        scale_factor = 60 / max_line_length
-        return max(int(base_size * scale_factor), 32)  # Minimum 32px
+    # Scale down for long lines
+    width_scale = 60 / max(max_line_length, 1)
+    width_scale = min(width_scale, 1.0)
     
-    # Increase slightly for short text
-    if max_line_length < 30:
-        return min(int(base_size * 1.2), 72)  # Maximum 72px
+    # Scale down for many lines
+    line_scale = 3 / max(line_count, 1)
+    line_scale = min(line_scale, 1.0)
     
-    return base_size
+    size = int(base_size * width_scale * line_scale)
+    size = max(size, 28)  # floor
+    size = min(size, 80)  # cap
+    return size
 
 
 

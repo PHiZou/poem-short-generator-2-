@@ -1,5 +1,6 @@
 """Main entry point for the poem short generator pipeline."""
 
+import argparse
 import logging
 import sys
 from datetime import datetime
@@ -27,6 +28,11 @@ logger = logging.getLogger(__name__)
 
 def main() -> None:
     """Main entry point orchestrating the pipeline."""
+    args = _parse_args()
+    openai_model = args.model or settings.OPENAI_MODEL
+    tone = args.tone
+    backgrounds_override = args.backgrounds
+    base_output_dir = Path(args.output_dir) if args.output_dir else settings.OUTPUT_BASE_DIR
     try:
         logger.info("=" * 60)
         logger.info("Starting Poem Short Generator Pipeline")
@@ -34,7 +40,7 @@ def main() -> None:
         
         # Create timestamped output directory
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = settings.OUTPUT_BASE_DIR / timestamp
+        output_dir = base_output_dir / timestamp
         output_dir.mkdir(parents=True, exist_ok=True)
         
         audio_dir = output_dir / "audio"
@@ -44,7 +50,7 @@ def main() -> None:
         
         # Step 1: Generate world news summary
         logger.info("\n[Step 1/4] Generating world news summary...")
-        summary = get_world_news_summary()
+        summary = get_world_news_summary(model=openai_model)
         
         # Save summary
         summary_path = output_dir / "summary.txt"
@@ -53,7 +59,7 @@ def main() -> None:
         
         # Step 2: Convert summary to poem stanzas
         logger.info("\n[Step 2/4] Converting summary to poem stanzas...")
-        stanzas = make_stanzas(summary)
+        stanzas = make_stanzas(summary, tone=tone, model=openai_model)
         
         # Save stanzas
         stanzas_path = output_dir / "stanzas.txt"
@@ -70,7 +76,7 @@ def main() -> None:
         logger.info("\n[Step 4/4] Building video...")
         
         # Select background images
-        background_paths = _select_backgrounds(len(stanzas))
+        background_paths = _select_backgrounds(len(stanzas), override_dir=backgrounds_override)
         if not background_paths:
             raise RuntimeError(
                 f"No background images found in {settings.ASSETS_BACKGROUNDS_DIR}. "
@@ -100,7 +106,7 @@ def main() -> None:
         sys.exit(1)
 
 
-def _select_backgrounds(count: int) -> list[str]:
+def _select_backgrounds(count: int, override_dir: str | None = None) -> list[str]:
     """
     Select background images for the video.
     
@@ -110,7 +116,7 @@ def _select_backgrounds(count: int) -> list[str]:
     Returns:
         List of background image file paths
     """
-    bg_dir = settings.ASSETS_BACKGROUNDS_DIR
+    bg_dir = Path(override_dir) if override_dir else settings.ASSETS_BACKGROUNDS_DIR
     
     if not bg_dir.exists():
         logger.warning(f"Background directory does not exist: {bg_dir}")
@@ -141,6 +147,16 @@ def _select_backgrounds(count: int) -> list[str]:
     logger.info(f"Selected {len(selected)} background images")
     
     return selected
+
+
+def _parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for customization."""
+    parser = argparse.ArgumentParser(description="Poem Short Generator")
+    parser.add_argument("--model", type=str, default=None, help="OpenAI model to use (overrides settings.py)")
+    parser.add_argument("--tone", type=str, default="poetic insight", help="Tone/style for the poem (e.g., 'poetic insight', 'somber', 'upbeat')")
+    parser.add_argument("--backgrounds", type=str, default=None, help="Path to backgrounds directory (overrides settings)")
+    parser.add_argument("--output-dir", type=str, default=None, help="Base output directory (overrides settings)")
+    return parser.parse_args()
 
 
 if __name__ == "__main__":

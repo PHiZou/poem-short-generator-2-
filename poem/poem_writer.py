@@ -2,19 +2,24 @@
 
 import logging
 import re
+import time
 from openai import OpenAI
 import settings
 
 logger = logging.getLogger(__name__)
 
 
-def make_stanzas(summary_text: str) -> list[str]:
+def make_stanzas(summary_text: str, tone: str = "poetic insight", model: str | None = None, max_retries: int = 3, backoff_seconds: float = 1.5) -> list[str]:
     """
     Converts summary → 3 stanzas (2-3 lines each).
     Each stanza focuses on part of the news.
     
     Args:
         summary_text: The news summary text to convert.
+        tone: Desired tone/style for the poem.
+        model: Optional OpenAI model override.
+        max_retries: Number of retry attempts on failure.
+        backoff_seconds: Base backoff in seconds between retries.
     
     Returns:
         List of 3 strings, each representing one stanza.
@@ -30,11 +35,14 @@ def make_stanzas(summary_text: str) -> list[str]:
         raise ValueError("Summary text cannot be empty.")
     
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    model_name = model or settings.OPENAI_MODEL
     
-    prompt = f"""Convert the following world news summary into a 3-stanza poem. 
-Each stanza should have 2-3 lines and focus on a different aspect of the news.
-Write in a poetic, evocative style while maintaining connection to the actual events.
-Separate each stanza with a blank line.
+    prompt = f"""Convert the following world news summary into a 3-stanza poem.
+- Each stanza must have 2-3 lines and focus on a different facet of the news.
+- Write with {tone} while keeping factual anchoring and insight.
+- Provide subtle interpretation: stakes, human impact, and context across regions.
+- Use vivid, economical language; avoid clichés; keep it respectful.
+- Separate each stanza with a blank line.
 
 News Summary:
 {summary_text}
@@ -52,43 +60,50 @@ Stanza 3 line 1
 Stanza 3 line 2
 [optional line 3]"""
 
-    try:
-        logger.info("Generating poem stanzas from news summary...")
-        response = client.chat.completions.create(
-            model=settings.OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": "You are a poet who creates evocative, meaningful poetry from news events."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.8,
-            max_tokens=400
-        )
-        
-        poem_text = response.choices[0].message.content.strip()
-        
-        # Parse stanzas from the response
-        stanzas = _parse_stanzas(poem_text)
-        
-        # Validate we have exactly 3 stanzas
-        if len(stanzas) != 3:
-            logger.warning(f"Expected 3 stanzas, got {len(stanzas)}. Attempting to fix...")
-            stanzas = _fix_stanza_count(stanzas, poem_text)
-        
-        # Validate each stanza has 2-3 lines
-        for i, stanza in enumerate(stanzas, 1):
-            lines = [line.strip() for line in stanza.split('\n') if line.strip()]
-            if len(lines) < 2:
-                logger.warning(f"Stanza {i} has only {len(lines)} lines. May need adjustment.")
-            elif len(lines) > 3:
-                logger.warning(f"Stanza {i} has {len(lines)} lines. Truncating to 3.")
-                stanzas[i-1] = '\n'.join(lines[:3])
-        
-        logger.info(f"Successfully generated {len(stanzas)} stanzas")
-        return stanzas
-        
-    except Exception as e:
-        logger.error(f"Failed to generate poem stanzas: {e}")
-        raise
+    last_error: Exception | None = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            logger.info(f"Generating poem stanzas from news summary (attempt {attempt}/{max_retries})...")
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": "You are a poet who crafts insightful, evocative poetry grounded in real news, balancing empathy, clarity, and global perspective."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.75,
+                max_tokens=420
+            )
+            
+            poem_text = response.choices[0].message.content.strip()
+            
+            # Parse stanzas from the response
+            stanzas = _parse_stanzas(poem_text)
+            
+            # Validate we have exactly 3 stanzas
+            if len(stanzas) != 3:
+                logger.warning(f"Expected 3 stanzas, got {len(stanzas)}. Attempting to fix...")
+                stanzas = _fix_stanza_count(stanzas, poem_text)
+            
+            # Validate each stanza has 2-3 lines
+            for i, stanza in enumerate(stanzas, 1):
+                lines = [line.strip() for line in stanza.split('\n') if line.strip()]
+                if len(lines) < 2:
+                    logger.warning(f"Stanza {i} has only {len(lines)} lines. May need adjustment.")
+                elif len(lines) > 3:
+                    logger.warning(f"Stanza {i} has {len(lines)} lines. Truncating to 3.")
+                    stanzas[i-1] = '\n'.join(lines[:3])
+            
+            logger.info(f"Successfully generated {len(stanzas)} stanzas")
+            return stanzas
+            
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Attempt {attempt} failed to generate poem stanzas: {e}")
+            if attempt < max_retries:
+                time.sleep(backoff_seconds * attempt)
+    
+    logger.error(f"Failed to generate poem stanzas after {max_retries} attempts: {last_error}")
+    raise last_error
 
 
 def _parse_stanzas(poem_text: str) -> list[str]:
