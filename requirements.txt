@@ -1,0 +1,31 @@
+# Core dependencies for Poem Short Generator
+
+# OpenAI API client
+openai>=1.0.0
+
+# Environment variable management
+python-dotenv>=1.0.0
+
+# Video editing and composition
+moviepy>=1.0.3
+
+# Image processing
+# Note: Pillow < 10.0.0 required for compatibility with moviepy 1.0.3 (ANTIALIAS attribute)
+Pillow>=9.0.0,<10.0.0
+
+# HTTP requests (for download_backgrounds.py)
+requests>=2.31.0
+
+# Piper TTS (choose one installation method)
+# Option 1: If using piper-tts Python package (if available)
+# piper-tts>=0.1.0
+
+# Option 2: If using piper command-line tool, install separately:
+# See https://github.com/rhasspy/piper for installation instructions
+# The piper command-line tool should be installed system-wide
+
+# Note: Piper TTS may require additional system dependencies
+# On macOS: brew install espeak-ng oniguruma
+# On Linux: apt-get install espeak-ng libespeak-ng-dev libonig-dev
+# On Windows: See Piper documentation for Windows installation
+
