@@ -86,6 +86,27 @@ python main.py
 # --model gpt-4o-mini --tone "poetic insight" --backgrounds assets/backgrounds --output-dir output
 ```
 
+### Daily automation (cron, 8:00 AM ET)
+
+1) Use the provided runner script:
+```
+run_daily.sh
+```
+It runs the pipeline, logs to `cron.log`, and updates `output/latest` to point to the newest run.
+
+2) Add a cron entry (macOS/Linux):
+```
+crontab -e
+```
+Add this line:
+```
+0 8 * * * TZ=America/New_York /Users/peterhagen/Desktop/poem-short-generator-2/run_daily.sh
+```
+
+3) Optional: adjust Python binary or venv in `run_daily.sh`:
+- Edit `PYTHON_BIN` (or uncomment the venv `source` line).
+- Change tone/stanzas flags as desired.
+
 The script will:
 1. Generate a world news summary using OpenAI
 2. Convert it to 3 poem stanzas
