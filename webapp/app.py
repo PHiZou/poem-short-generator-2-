@@ -23,6 +23,7 @@ generation_status = {
     'error': None,
     'last_video': None
 }
+generation_lock = threading.Lock()  # Protect concurrent access to generation_status
 
 
 def get_all_videos():
@@ -206,24 +207,26 @@ def api_generate():
     """Start video generation (async)."""
     global generation_status
     
-    if generation_status['is_generating']:
-        return jsonify({'error': 'Generation already in progress'}), 400
-    
-    # Get parameters from request
+    # Get parameters from request (before lock to minimize lock time)
     data = request.get_json() or {}
     tone = data.get('tone', 'poetic insight')
     stanzas_count = int(data.get('stanzas', 7))
     model = data.get('model', settings.OPENAI_MODEL)
     
-    # Reset status
-    generation_status = {
-        'is_generating': True,
-        'progress': 'Initializing...',
-        'error': None,
-        'last_video': None
-    }
+    # Atomic check-and-set to prevent race condition
+    with generation_lock:
+        if generation_status['is_generating']:
+            return jsonify({'error': 'Generation already in progress'}), 400
+        
+        # Reset status while holding the lock
+        generation_status = {
+            'is_generating': True,
+            'progress': 'Initializing...',
+            'error': None,
+            'last_video': None
+        }
     
-    # Run generation in background thread
+    # Run generation in background thread (outside lock)
     thread = threading.Thread(target=run_generation, args=(tone, stanzas_count, model))
     thread.daemon = True
     thread.start()
