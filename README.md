@@ -2,6 +2,8 @@
 
 A Python pipeline that automatically generates daily news summaries, converts them into poetic stanzas, creates text-to-speech audio, and produces vertical videos (1080×1920) perfect for social media.
 
+**Now with a web interface!** 🌐
+
 ## Features
 
 - 📰 **News Summarization**: Uses OpenAI GPT-4 to generate concise world news summaries
@@ -10,24 +12,30 @@ A Python pipeline that automatically generates daily news summaries, converts th
 - 🎬 **Video Creation**: Creates vertical videos with synced audio and captions
 - 🎨 **Custom Backgrounds**: Supports multiple background images
 - 📱 **Social Media Ready**: Outputs vertical 1080×1920 videos
+- 🌐 **Web Interface**: Browse videos, generate on-demand, customize settings, and download
 
 ## Project Structure
 
 ```
 poem-short-generator-2/
-├── main.py                 # Main pipeline orchestration
+├── main.py                 # Main pipeline orchestration (CLI)
+├── run_web.py              # Web application entry point
 ├── settings.py             # Configuration settings
-├── requirements.txt       # Python dependencies
+├── requirements.txt        # Python dependencies
 ├── download_backgrounds.py # Script to download background images
 ├── poem/
-│   ├── summarizer.py      # News summary generation
-│   └── poem_writer.py     # Poem stanza generation
+│   ├── summarizer.py       # News summary generation
+│   └── poem_writer.py      # Poem stanza generation
 ├── audio/
-│   └── tts.py             # Piper TTS audio generation
+│   └── tts.py              # Piper TTS audio generation
 ├── video/
-│   └── video_maker.py     # Video composition and assembly
+│   └── video_maker.py      # Video composition and assembly
+├── webapp/
+│   ├── app.py              # Flask web application
+│   ├── templates/          # HTML templates
+│   └── static/             # CSS and JavaScript
 ├── assets/
-│   └── backgrounds/       # Background images (add your own)
+│   └── backgrounds/        # Background images (add your own)
 └── output/                 # Generated outputs (timestamped)
 ```
 
@@ -78,7 +86,32 @@ poem-short-generator-2/
 
 ## Usage
 
-Run the complete pipeline:
+### Web App (Recommended)
+
+Start the web server:
+
+```bash
+python run_web.py
+```
+
+Then open http://localhost:5000 in your browser.
+
+**Web App Features:**
+- 📺 **Video Gallery**: Browse all generated poems with video playback
+- ⚡ **On-Demand Generation**: Generate new poems with custom settings
+- ⚙️ **Settings**: Choose tone (poetic, somber, upbeat, etc.), stanza count, and AI model
+- 📥 **Download**: Download any video directly from the gallery
+
+**Environment Variables (optional):**
+```bash
+FLASK_HOST=0.0.0.0    # Host to bind to (default: 0.0.0.0)
+FLASK_PORT=5000       # Port to run on (default: 5000)
+FLASK_DEBUG=true      # Debug mode (default: true)
+```
+
+### Command Line (CLI)
+
+Run the complete pipeline from command line:
 
 ```bash
 python main.py
@@ -148,6 +181,7 @@ PIPER_VOICE_MODEL=en_US-lessac-medium
 
 See `requirements.txt` for full list. Key dependencies:
 - `openai` - OpenAI API client
+- `flask` - Web framework
 - `moviepy==1.0.3` - Video editing
 - `Pillow>=9.0.0,<10.0.0` - Image processing
 - `piper-tts` - Text-to-speech
@@ -182,15 +216,45 @@ Add at least 3 images to `assets/backgrounds/` or run:
 python download_backgrounds.py
 ```
 
+## Deployment
+
+### Local Development
+```bash
+python run_web.py
+```
+
+### Production (Gunicorn)
+```bash
+pip install gunicorn
+gunicorn -w 4 -b 0.0.0.0:5000 webapp.app:app
+```
+
+### AWS Deployment
+The app is ready for deployment on AWS:
+- **EC2**: Run with Gunicorn behind Nginx
+- **Elastic Beanstalk**: Use the included `requirements.txt`
+- **Lambda + API Gateway**: For serverless (requires adaptation)
+
+### Docker (optional)
+```dockerfile
+FROM python:3.11-slim
+WORKDIR /app
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt piper-tts
+COPY . .
+EXPOSE 5000
+CMD ["gunicorn", "-w", "2", "-b", "0.0.0.0:5000", "webapp.app:app"]
+```
+
 ## Future Enhancements
 
-Potential improvements for website/app deployment:
-- Web API using Flask/FastAPI
-- Scheduled daily runs (cron/scheduler)
+Potential improvements:
 - Database storage for generated content
 - User authentication and customization
 - Mobile app integration
-- Cloud storage for outputs
+- Cloud storage for outputs (S3)
+- WebSocket for real-time generation progress
 
 ## License
 

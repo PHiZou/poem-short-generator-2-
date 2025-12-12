@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Gallery{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>Daily Poem Gallery</h1>
+    <p class="subtitle">AI-generated poetry inspired by today's world news</p>
+</header>
+
+{% if videos %}
+<div class="video-grid">
+    {% for video in videos %}
+    <article class="video-card">
+        <div class="video-preview" onclick="window.location='{{ url_for('video_detail', video_id=video.id) }}'">
+            <video preload="metadata" muted>
+                <source src="{{ url_for('serve_video', video_id=video.id) }}" type="video/mp4">
+            </video>
+            <div class="play-overlay">
+                <span class="play-icon">▶</span>
+            </div>
+        </div>
+        <div class="video-info">
+            <span class="video-date">{{ video.date }}</span>
+            <h3 class="video-title">{{ video.title }}</h3>
+            <p class="video-summary">{{ video.summary }}</p>
+            <div class="video-actions">
+                <a href="{{ url_for('video_detail', video_id=video.id) }}" class="btn btn-view">View</a>
+                <a href="{{ url_for('download_video', video_id=video.id) }}" class="btn btn-download">Download</a>
+            </div>
+        </div>
+    </article>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-icon">🎬</div>
+    <h2>No poems yet</h2>
+    <p>Generate your first daily poem video!</p>
+    <a href="{{ url_for('generate_page') }}" class="btn btn-primary btn-large">Generate Poem</a>
+</div>
+{% endif %}
+{% endblock %}

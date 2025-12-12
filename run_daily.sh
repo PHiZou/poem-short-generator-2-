@@ -5,7 +5,7 @@
 set -euo pipefail
 
 PROJECT_DIR="/Users/peterhagen/Desktop/poem-short-generator-2"
-PYTHON_BIN="python"  # change to your venv python if needed, e.g., "$PROJECT_DIR/.venv/bin/python"
+PYTHON_BIN="/opt/anaconda3/bin/python"  # Using anaconda python
 LOG_FILE="$PROJECT_DIR/cron.log"
 
 cd "$PROJECT_DIR"

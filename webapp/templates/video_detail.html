@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}{{ video.title }}{% endblock %}
+
+{% block content %}
+<div class="video-detail">
+    <a href="{{ url_for('index') }}" class="back-link">← Back to Gallery</a>
+    
+    <div class="video-detail-grid">
+        <div class="video-player-container">
+            <video controls class="video-player">
+                <source src="{{ url_for('serve_video', video_id=video.id) }}" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+        
+        <div class="video-metadata">
+            <span class="video-date">{{ video.date }}</span>
+            <h1 class="video-title">{{ video.title }}</h1>
+            
+            <div class="action-buttons">
+                <a href="{{ url_for('download_video', video_id=video.id) }}" class="btn btn-primary">
+                    <span>⬇</span> Download Video
+                </a>
+            </div>
+            
+            <div class="content-section">
+                <h3>News Summary</h3>
+                <p class="summary-text">{{ video.full_summary }}</p>
+            </div>
+            
+            <div class="content-section">
+                <h3>Poem Stanzas</h3>
+                <div class="stanzas-text">{{ video.stanzas }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
