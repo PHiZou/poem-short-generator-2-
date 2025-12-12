@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}Generate New Poem{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>Generate New Poem</h1>
+    <p class="subtitle">Create a new poem video based on today's world news</p>
+</header>
+
+<div class="generate-container">
+    <form id="generate-form" class="generate-form">
+        <div class="form-group">
+            <label for="tone">Poem Tone/Style</label>
+            <select id="tone" name="tone">
+                <option value="poetic insight" selected>Poetic Insight</option>
+                <option value="somber">Somber & Reflective</option>
+                <option value="upbeat">Upbeat & Hopeful</option>
+                <option value="satirical">Satirical</option>
+                <option value="dramatic">Dramatic</option>
+                <option value="philosophical">Philosophical</option>
+                <option value="lyrical">Lyrical & Musical</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="stanzas">Number of Stanzas</label>
+            <input type="number" id="stanzas" name="stanzas" value="7" min="3" max="12">
+            <span class="form-hint">3-12 stanzas (more stanzas = longer video)</span>
+        </div>
+        
+        <div class="form-group">
+            <label for="model">OpenAI Model</label>
+            <select id="model" name="model">
+                <option value="gpt-4" {% if default_model == 'gpt-4' %}selected{% endif %}>GPT-4 (Best quality)</option>
+                <option value="gpt-4-turbo" {% if default_model == 'gpt-4-turbo' %}selected{% endif %}>GPT-4 Turbo (Faster)</option>
+                <option value="gpt-3.5-turbo" {% if default_model == 'gpt-3.5-turbo' %}selected{% endif %}>GPT-3.5 Turbo (Fastest)</option>
+            </select>
+        </div>
+        
+        <button type="submit" id="generate-btn" class="btn btn-primary btn-large btn-full">
+            Generate Poem Video
+        </button>
+    </form>
+    
+    <div id="status-container" class="status-container hidden">
+        <div class="status-header">
+            <div class="spinner"></div>
+            <h3>Generating your poem...</h3>
+        </div>
+        <p id="status-text" class="status-text">Initializing...</p>
+        <div class="progress-bar">
+            <div id="progress-fill" class="progress-fill"></div>
+        </div>
+    </div>
+    
+    <div id="error-container" class="error-container hidden">
+        <h3>⚠️ Generation Error</h3>
+        <p id="error-text"></p>
+        <button onclick="resetForm()" class="btn btn-secondary">Try Again</button>
+    </div>
+    
+    <div id="success-container" class="success-container hidden">
+        <h3>✨ Poem Generated!</h3>
+        <p>Your new poem video is ready.</p>
+        <a id="view-video-link" href="#" class="btn btn-primary">View Video</a>
+    </div>
+</div>
+
+<div class="info-box">
+    <h3>How it works</h3>
+    <ol>
+        <li><strong>News Analysis:</strong> AI scans current world news headlines</li>
+        <li><strong>Poem Writing:</strong> GPT transforms news into poetic stanzas</li>
+        <li><strong>Voice Generation:</strong> Piper TTS narrates the poem</li>
+        <li><strong>Video Creation:</strong> Stanzas are combined with backgrounds into a video</li>
+    </ol>
+    <p class="info-note">Generation typically takes 1-3 minutes depending on settings.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const form = document.getElementById('generate-form');
+const generateBtn = document.getElementById('generate-btn');
+const statusContainer = document.getElementById('status-container');
+const statusText = document.getElementById('status-text');
+const progressFill = document.getElementById('progress-fill');
+const errorContainer = document.getElementById('error-container');
+const errorText = document.getElementById('error-text');
+const successContainer = document.getElementById('success-container');
+const viewVideoLink = document.getElementById('view-video-link');
+
+let pollInterval;
+
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const formData = {
+        tone: document.getElementById('tone').value,
+        stanzas: document.getElementById('stanzas').value,
+        model: document.getElementById('model').value
+    };
+    
+    try {
+        const response = await fetch('/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showStatus();
+            startPolling();
+        } else {
+            showError(data.error || 'Failed to start generation');
+        }
+    } catch (err) {
+        showError('Network error: ' + err.message);
+    }
+});
+
+function showStatus() {
+    form.classList.add('hidden');
+    statusContainer.classList.remove('hidden');
+    errorContainer.classList.add('hidden');
+    successContainer.classList.add('hidden');
+}
+
+function showError(message) {
+    form.classList.add('hidden');
+    statusContainer.classList.add('hidden');
+    errorContainer.classList.remove('hidden');
+    successContainer.classList.add('hidden');
+    errorText.textContent = message;
+}
+
+function showSuccess(videoId) {
+    form.classList.add('hidden');
+    statusContainer.classList.add('hidden');
+    errorContainer.classList.add('hidden');
+    successContainer.classList.remove('hidden');
+    viewVideoLink.href = '/video/' + videoId;
+}
+
+function resetForm() {
+    form.classList.remove('hidden');
+    statusContainer.classList.add('hidden');
+    errorContainer.classList.add('hidden');
+    successContainer.classList.add('hidden');
+}
+
+function startPolling() {
+    pollInterval = setInterval(async () => {
+        try {
+            const response = await fetch('/api/status');
+            const status = await response.json();
+            
+            statusText.textContent = status.progress;
+            
+            // Update progress bar based on step
+            let progress = 0;
+            if (status.progress.includes('Step 1')) progress = 25;
+            else if (status.progress.includes('Step 2')) progress = 50;
+            else if (status.progress.includes('Step 3')) progress = 75;
+            else if (status.progress.includes('Step 4')) progress = 90;
+            else if (status.progress.includes('Complete')) progress = 100;
+            
+            progressFill.style.width = progress + '%';
+            
+            if (!status.is_generating) {
+                clearInterval(pollInterval);
+                
+                if (status.error) {
+                    showError(status.error);
+                } else if (status.last_video) {
+                    showSuccess(status.last_video);
+                }
+            }
+        } catch (err) {
+            console.error('Polling error:', err);
+        }
+    }, 1000);
+}
+</script>
+{% endblock %}

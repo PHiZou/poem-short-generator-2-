@@ -16,6 +16,9 @@ Pillow>=9.0.0,<10.0.0
 # HTTP requests (for download_backgrounds.py)
 requests>=2.31.0
 
+# Web application
+flask>=3.0.0
+
 # Piper TTS (choose one installation method)
 # Option 1: If using piper-tts Python package (if available)
 # piper-tts>=0.1.0
